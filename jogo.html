@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Jardim Clicker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0fff0; /* Fundo cor de grama clara */
+            color: #333;
+        }
+
+        #game-container {
+            text-align: center;
+            padding: 20px;
+            border-radius: 15px;
+            background-color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #plant {
+            font-size: 80px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: transform 0.1s ease-out;
+            display: inline-block;
+        }
+
+        #plant:active {
+            transform: scale(1.05);
+        }
+
+        #stats p {
+            font-size: 1.2em;
+            margin: 5px 0;
+        }
+        
+        /* Novo estilo para destacar as frutas colhidas */
+        #harvest-count-display {
+            font-weight: bold;
+            color: #d9534f; /* Vermelho para a fruta */
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+
+        #water-button {
+            background-color: #4CAF50; /* Verde para regar */
+            color: white;
+        }
+        #water-button:hover {
+            background-color: #45a049;
+        }
+        #water-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        #harvest-button {
+            background-color: #008CBA; /* Azul para colher */
+            color: white;
+            display: none; /* Escondido inicialmente */
+        }
+        #harvest-button:hover {
+            background-color: #007bb5;
+        }
+
+        /* Usa o 'content' para mostrar o emoji baseado no data-stage */
+        #plant[data-stage="0"]::before { content: "🌱"; }
+        #plant[data-stage="1"]::before { content: "🌿"; }
+        #plant[data-stage="2"]::before { content: "🌳"; }
+        #plant[data-stage="3"]::before { content: "🍎"; } /* Um emoji de "fruto" */
+
+        #message {
+            margin-top: 15px;
+            color: #d9534f;
+            font-weight: bold;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>Meu Jardim Clicker</h1>
+
+        <div id="stats">
+            <p>Pontuação: <span id="score-display">0</span></p>
+            <p>Frutas Colhidas: <span id="harvest-count-display">0</span></p>
+            <p>Progresso: <span id="progress-display">0%</span></p>
+        </div>
+
+        <div id="plant" data-stage="0" title="Clique para regar!"></div>
+
+        <button id="water-button">Regar!</button>
+        <button id="harvest-button">Colher Fruto!</button>
+
+        <p id="message"></p>
+    </div>
+
+    <script>
+        const plant = document.getElementById('plant');
+        const waterButton = document.getElementById('water-button');
+        const harvestButton = document.getElementById('harvest-button');
+        const scoreDisplay = document.getElementById('score-display');
+        const progressDisplay = document.getElementById('progress-display');
+        const messageDisplay = document.getElementById('message');
+        // NOVO: Elemento para exibir a contagem de colheitas
+        const harvestCountDisplay = document.getElementById('harvest-count-display'); 
+
+        let score = 0;
+        let harvestCount = 0; // NOVO: Variável para contar as frutas colhidas
+        let growthStage = 0; // 0: Semente, 1: Broto, 2: Árvore Pequena, 3: Pronta para Colheita
+        let waterClicks = 0;
+        const clicksToNextStage = [5, 10, 15, 0]; // Cliques necessários para passar da Stage 0->1, 1->2, 2->3.
+
+        function updatePlantVisual() {
+            plant.setAttribute('data-stage', growthStage);
+
+            // Atualiza todas as estatísticas na tela
+            scoreDisplay.textContent = score;
+            harvestCountDisplay.textContent = harvestCount; // NOVO: Atualiza o contador de frutas
+
+            // Lógica de cálculo de progresso (mantida do código anterior)
+            let progressPercentage = 0;
+            if (growthStage < 3) {
+                let clicksBase = 0;
+                if (growthStage > 0) clicksBase += clicksToNextStage[0];
+                if (growthStage > 1) clicksBase += clicksToNextStage[1];
+                
+                const progressClicks = waterClicks - clicksBase;
+                const totalClicksCurrentStage = clicksToNextStage[growthStage];
+                
+                progressPercentage = Math.min(100, Math.floor((progressClicks / totalClicksCurrentStage) * 100));
+            } else {
+                progressPercentage = 100;
+            }
+
+            progressDisplay.textContent = `${progressPercentage}%`;
+
+            if (growthStage < 3) {
+                waterButton.style.display = 'inline-block';
+                harvestButton.style.display = 'none';
+                
+                // Cálculo de cliques restantes para mostrar no botão
+                let clicksBase = 0;
+                if (growthStage > 0) clicksBase += clicksToNextStage[0];
+                if (growthStage > 1) clicksBase += clicksToNextStage[1];
+                const currentStageClicks = waterClicks - clicksBase;
+
+                waterButton.textContent = `Regar! (${clicksToNextStage[growthStage] - currentStageClicks} cliques restantes)`;
+            } else {
+                waterButton.style.display = 'none';
+                harvestButton.style.display = 'inline-block';
+                messageDisplay.textContent = "A planta está madura! Colha o fruto!";
+            }
+        }
+
+        function regarPlanta() {
+            if (growthStage >= 3) {
+                messageDisplay.textContent = "A planta já está pronta para colheita! Colha o fruto.";
+                return;
+            }
+
+            waterClicks++;
+            messageDisplay.textContent = "💧 Você regou a planta!";
+
+            const clicksNeeded = clicksToNextStage[growthStage];
+
+            // Calcula quantos cliques já foram feitos APENAS nesta fase.
+            let clicksBase = 0;
+            if (growthStage > 0) clicksBase += clicksToNextStage[0];
+            if (growthStage > 1) clicksBase += clicksToNextStage[1];
+            
+            const currentStageClicks = waterClicks - clicksBase;
+
+            if (currentStageClicks >= clicksNeeded) {
+                growthStage++;
+                messageDisplay.textContent = `🎉 A planta cresceu para o Estágio ${growthStage}!`;
+            }
+
+            updatePlantVisual();
+            setTimeout(() => messageDisplay.textContent = '', 1500); // Limpa a mensagem
+        }
+
+        function colherFruto() {
+            if (growthStage !== 3) {
+                messageDisplay.textContent = "A planta ainda não está madura o suficiente para colher!";
+                return;
+            }
+
+            const points = 50;
+            score += points;
+            harvestCount++; // NOVO: Incrementa o contador de frutas colhidas!
+            
+            messageDisplay.textContent = `💰 Você colheu um fruto e ganhou ${points} pontos! (Total: ${harvestCount})`;
+
+            // Resetar a planta
+            growthStage = 0;
+            waterClicks = 0;
+            
+            updatePlantVisual();
+            setTimeout(() => messageDisplay.textContent = '', 2000);
+        }
+
+        // Event Listeners
+        waterButton.addEventListener('click', regarPlanta);
+        harvestButton.addEventListener('click', colherFruto);
+        plant.addEventListener('click', regarPlanta); // O clique na planta também rega
+
+        // Inicializar o jogo
+        updatePlantVisual();
+    </script>
+</body>
+</html>
